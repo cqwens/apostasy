@@ -7,21 +7,21 @@ import (
 )
 
 func installNomad() error {
-	// Download GPG key separately
-	keyCmd := exec.Command("curl", "-fsSL", "https://apt.releases.hashicorp.com/gpg")
-	addKeyCmd := exec.Command("apt-key", "add", "-")
-
-	addKeyCmd.Stdin, _ = keyCmd.StdoutPipe()
-	addKeyCmd.Stdout = os.Stdout
-	addKeyCmd.Stderr = os.Stderr
-
-	if err := addKeyCmd.Start(); err != nil {
+	// First download the key to a file
+	keyFile := "/tmp/hashicorp.gpg"
+	downloadCmd := exec.Command("curl", "-fsSL", "-o", keyFile, "https://apt.releases.hashicorp.com/gpg")
+	if err := downloadCmd.Run(); err != nil {
 		return err
 	}
-	if err := keyCmd.Run(); err != nil {
+
+	// Then add the key
+	addKeyCmd := exec.Command("apt-key", "add", keyFile)
+	if err := addKeyCmd.Run(); err != nil {
 		return err
 	}
-	if err := addKeyCmd.Wait(); err != nil {
+
+	// Clean up
+	if err := os.Remove(keyFile); err != nil {
 		return err
 	}
 
