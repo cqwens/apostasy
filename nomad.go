@@ -2,12 +2,30 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"text/template"
 )
 
 func installNomad() error {
+	// Download GPG key separately
+	keyCmd := exec.Command("curl", "-fsSL", "https://apt.releases.hashicorp.com/gpg")
+	addKeyCmd := exec.Command("apt-key", "add", "-")
+
+	addKeyCmd.Stdin, _ = keyCmd.StdoutPipe()
+	addKeyCmd.Stdout = os.Stdout
+	addKeyCmd.Stderr = os.Stderr
+
+	if err := addKeyCmd.Start(); err != nil {
+		return err
+	}
+	if err := keyCmd.Run(); err != nil {
+		return err
+	}
+	if err := addKeyCmd.Wait(); err != nil {
+		return err
+	}
+
 	cmds := []string{
-		"curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -",
 		"apt-add-repository \"deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main\"",
 		"apt-get update",
 		"apt-get install -y nomad",
