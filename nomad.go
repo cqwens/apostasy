@@ -7,30 +7,43 @@ import (
 )
 
 func installNomad() error {
-	// First download the key to a file
-	keyFile := "/tmp/hashicorp.gpg"
-	downloadCmd := exec.Command("curl", "-fsSL", "-o", keyFile, "https://apt.releases.hashicorp.com/gpg")
-	if err := downloadCmd.Run(); err != nil {
-		return err
-	}
-
-	// Then add the key
-	addKeyCmd := exec.Command("apt-key", "add", keyFile)
-	if err := addKeyCmd.Run(); err != nil {
-		return err
-	}
-
-	// Clean up
-	if err := os.Remove(keyFile); err != nil {
-		return err
-	}
-
+	// Install prerequisites
 	cmds := []string{
-		"apt-add-repository \"deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main\"",
+		"apt-get update",
+		"apt-get install -y wget gpg coreutils",
+	}
+	if err := runCommands(cmds); err != nil {
+		return err
+	}
+
+	// Download and setup GPG key
+	keyCmd := exec.Command("wget", "-O-", "https://apt.releases.hashicorp.com/gpg")
+	keyFile := "/usr/share/keyrings/hashicorp-archive-keyring.gpg"
+	gpgCmd := exec.Command("gpg", "--dearmor", "-o", keyFile)
+
+	gpgCmd.Stdin, _ = keyCmd.StdoutPipe()
+	if err := gpgCmd.Start(); err != nil {
+		return err
+	}
+	if err := keyCmd.Run(); err != nil {
+		return err
+	}
+	if err := gpgCmd.Wait(); err != nil {
+		return err
+	}
+
+	// Add repository
+	repoLine := "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+	repoFile := "/etc/apt/sources.list.d/hashicorp.list"
+	if err := os.WriteFile(repoFile, []byte(repoLine+"\n"), 0644); err != nil {
+		return err
+	}
+
+	// Install Nomad
+	return runCommands([]string{
 		"apt-get update",
 		"apt-get install -y nomad",
-	}
-	return runCommands(cmds)
+	})
 }
 
 func configureNomad(cfg Config) error {
